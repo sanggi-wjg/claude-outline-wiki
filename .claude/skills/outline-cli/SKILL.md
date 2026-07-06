@@ -24,7 +24,7 @@ description: Outline 위키 API 래퍼 CLI(bin/outline)의 구현 명세 — 서
 
 - 확인 순서: ① 토큰 → ② URL (테스트 재현성을 위해 순서 고정).
 - 토큰이 둘 다 없으면: stderr로 등록 방법 안내(키체인 명령 예시 + `OUTLINE_API_TOKEN` 대안) 후 **exit 2**.
-- `OUTLINE_URL` 미설정이면: stderr로 설정 방법 안내(`export OUTLINE_URL="https://<위키 도메인>"`) 후 **exit 2**.
+- `OUTLINE_URL` 미설정이면: stderr로 설정 방법 안내 후 **exit 2**. 안내는 두 방법 병기 — ① 셸 프로필 `export OUTLINE_URL="https://<위키 도메인>"` ② Claude Code 사용자 설정(`~/.claude/settings.json`)의 `"env": { "OUTLINE_URL": "https://<위키 도메인>" }` (Claude Code 세션에만 적용됨을 명시).
 - `security`는 subprocess로 호출하되 토큰은 stdout으로만 받는다. `security`가 없는 플랫폼(비 macOS)에서는 조용히 건너뛰고 env만 본다.
 
 ## API 호출 규약

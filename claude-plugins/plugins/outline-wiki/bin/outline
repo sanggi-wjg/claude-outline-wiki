@@ -32,7 +32,10 @@ REGISTER_HINT = (
 
 URL_HINT = (
     "베이스 URL 설정 방법:\n"
+    "  1) 셸 프로필 (예: ~/.zshrc, ~/.bashrc):\n"
     '     export OUTLINE_URL="https://<위키 도메인>"\n'
+    "  2) Claude Code 사용자 설정 (~/.claude/settings.json) — Claude Code 세션에만 적용됨:\n"
+    '     "env": { "OUTLINE_URL": "https://<위키 도메인>" }\n'
     "  사용 중인 Outline 인스턴스의 주소로 지정하세요."
 )
 
