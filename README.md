@@ -1,6 +1,6 @@
-# claude-plugins (team 마켓플레이스)
+# claude-plugins (sanggi-wjg 마켓플레이스)
 
-사내 Claude Code 플러그인을 배포하는 사설 마켓플레이스 리포다. 마켓플레이스 이름은 `team`이며, 설치 시 `<plugin>@team` 형태로 참조한다.
+사내 Claude Code 플러그인을 배포하는 사설 마켓플레이스 리포다. 마켓플레이스 이름은 `sanggi-wjg`이며, 설치 시 `<plugin>@sanggi-wjg` 형태로 참조한다.
 
 ## 제공 플러그인
 
@@ -13,7 +13,7 @@
 ```bash
 # 1. 마켓플레이스 등록 + 설치 (Claude Code 안에서)
 /plugin marketplace add <사설 리포 git URL>
-/plugin install outline-wiki@team
+/plugin install outline-wiki@sanggi-wjg
 
 # 2. 위키 주소 설정 (셸 프로필에 — 필수, 기본값 없음)
 export OUTLINE_URL="https://<위키 도메인>"
@@ -65,7 +65,7 @@ outline doctor
 ```
 claude-plugins/
 ├── .claude-plugin/
-│   └── marketplace.json        # name: "team", 플러그인 목록
+│   └── marketplace.json        # name: "sanggi-wjg", 플러그인 목록
 ├── plugins/
 │   └── outline-wiki/
 │       ├── .claude-plugin/

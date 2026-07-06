@@ -62,7 +62,7 @@ CONTEXT.md 설계대로 outline-wiki 플러그인을 구현·검증하는 빌드
 
 `/plugin` 명령과 실토큰 스모크는 대화형·자격증명 필요 작업이라 에이전트가 대신할 수 없다. 아래를 **그대로 복사해 실행할 수 있는 형태**로 정리해 최종 보고에 포함한다:
 
-1. 로컬 설치 리허설: `/plugin marketplace add {repo 절대경로}` → `/plugin install outline-wiki@team` → 새 세션에서 `which outline` + 에이전트 인식 확인
+1. 로컬 설치 리허설: `/plugin marketplace add {repo 절대경로}` → `/plugin install outline-wiki@sanggi-wjg` → 새 세션에서 `which outline` + 에이전트 인식 확인
 2. 실토큰 등록(`security add-generic-password -s outline-token -a "$USER" -w "<토큰>"`) 후 스모크: `doctor` → `collections` → `search` → `read` → draft `create`/`delete`/`restore` 왕복
 3. GitHub 사설 리포 생성·push 명령 + 팀원 1명 설치 리허설 안내
 

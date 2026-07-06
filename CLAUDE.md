@@ -4,7 +4,7 @@ Outline 위키용 Claude Code 플러그인(outline-wiki)을 만들어 사설 Git
 
 ## 하네스: Outline 플러그인 빌더
 
-**목표:** CONTEXT.md 설계대로 마켓플레이스 리포 `claude-plugins/`(bin/outline CLI + 매니페스트 + 배포 에이전트 + README)를 구현·검증하여 팀원이 `/plugin install outline-wiki@team`으로 설치 가능하게 한다.
+**목표:** CONTEXT.md 설계대로 마켓플레이스 리포 `claude-plugins/`(bin/outline CLI + 매니페스트 + 배포 에이전트 + README)를 구현·검증하여 팀원이 `/plugin install outline-wiki@sanggi-wjg`로 설치 가능하게 한다.
 
 **트리거:** 플러그인 빌드·수정·재빌드·QA·검증·패키징·배포 준비 등 산출물 관련 작업 요청 시 `outline-plugin-builder` 스킬을 사용하라. 단순 질문은 직접 응답 가능.
 
@@ -20,3 +20,4 @@ Outline 위키용 Claude Code 플러그인(outline-wiki)을 만들어 사설 Git
 | 2026-07-05 | README 루트 단일화 — 플러그인 README 삭제, 셋업·permission 내용 루트로 통합. 스킬 명세도 동기화(재빌드 시 복원 금지) | claude-plugins/README.md, skills/plugin-packaging | 사용자 결정 |
 | 2026-07-05 | 회사 정보 비내장(전면 스크럽) — 위키 URL 기본값 제거(OUTLINE_URL 필수·T7 신설), 마켓플레이스명 fitpet→team, owner/author 중립화, 문서 스크럽. 스킬·QA 매트릭스 동기화 | skills 2종, agents/plugin-qa, claude-plugins/ 전체 | 사용자 결정 (CONTEXT.md의 URL 내장 결정 무효화) |
 | 2026-07-05 | 스크럽 통합 QA 재판정 PASS — 잔존 grep 6패턴 0건, B1~B6 정합, 부산물 정리 | claude-plugins/ | 배포 게이트 재통과 (07_scrub_and_final_qa.md) |
+| 2026-07-06 | 마켓플레이스명 team→sanggi-wjg (설치 참조 `outline-wiki@sanggi-wjg`). 스킬 2종·plugin-qa B3·CLAUDE.md 목표 라인 동기화(목표 라인 잔존은 커밋 전 코드 리뷰에서 발견·수정), QA packaging 재검증 PASS (개인 계정명은 비내장 원칙과 무충돌 명시. CONTEXT.md의 fitpet 명명은 07-05 스크럽에서 이미 무효화) | marketplace.json, README.md, skills 2종, agents/plugin-qa, CLAUDE.md | 사용자 결정 — 개인 GitHub 계정 리포 배포 (08_rename_marketplace_sanggi-wjg.md) |
