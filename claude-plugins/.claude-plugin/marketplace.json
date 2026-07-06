@@ -1,0 +1,14 @@
+{
+  "name": "team",
+  "owner": {
+    "name": "outline-wiki maintainers"
+  },
+  "description": "outline-wiki 플러그인 마켓플레이스",
+  "plugins": [
+    {
+      "name": "outline-wiki",
+      "source": "./plugins/outline-wiki",
+      "description": "사내 Outline 위키의 문서 검색·조회·작성·수정·관리를 담당하는 에이전트와 outline CLI를 제공한다."
+    }
+  ]
+}

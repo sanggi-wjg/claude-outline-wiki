@@ -1,0 +1,481 @@
+#!/usr/bin/env python3
+"""셀프 호스트 Outline 위키 API 래퍼 CLI.
+
+Python 3 표준 라이브러리만 사용하는 단일 파일 도구.
+플러그인 bin/ 은 Bash PATH 에 자동 추가되므로 `outline <subcommand>` 로 호출한다.
+베이스 URL 은 내장하지 않고 `OUTLINE_URL` env 로만 공급받는다.
+
+구현 명세: .claude/skills/outline-cli/SKILL.md
+"""
+
+import argparse
+import html
+import http.client
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+
+TIMEOUT = 30
+
+REGISTER_HINT = (
+    "토큰 등록 방법:\n"
+    "  1) macOS 키체인 (권장):\n"
+    '     security add-generic-password -s outline-token -a "$USER" -w "<API 토큰>"\n'
+    "  2) 환경변수:\n"
+    '     export OUTLINE_API_TOKEN="<API 토큰>"\n'
+    "  API 토큰은 Outline 위키 설정 → API Tokens 에서 발급합니다."
+)
+
+URL_HINT = (
+    "베이스 URL 설정 방법:\n"
+    '     export OUTLINE_URL="https://<위키 도메인>"\n'
+    "  사용 중인 Outline 인스턴스의 주소로 지정하세요."
+)
+
+
+# --------------------------------------------------------------------------
+# 인증 · URL 해석
+# --------------------------------------------------------------------------
+def token_from_keychain():
+    """macOS 키체인에서 outline-token 을 읽는다.
+
+    토큰은 stdout 으로만 받는다(프로세스 인자에 토큰이 들어가지 않음).
+    security 가 없는 플랫폼(비 macOS)이면 조용히 None 을 반환한다.
+    """
+    try:
+        result = subprocess.run(
+            ["security", "find-generic-password", "-s", "outline-token", "-w"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (FileNotFoundError, OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    token = result.stdout.strip()
+    return token or None
+
+
+def resolve_token():
+    """① OUTLINE_API_TOKEN env (빈 문자열은 미설정) → ② 키체인."""
+    env_token = os.environ.get("OUTLINE_API_TOKEN")
+    if env_token:  # 빈 문자열/미설정은 falsy → 건너뜀
+        return env_token
+    return token_from_keychain()
+
+
+def resolve_base_url():
+    """OUTLINE_URL env 필수 (기본값 없음, 빈 문자열은 미설정). 미설정이면 None."""
+    url = os.environ.get("OUTLINE_URL")
+    if url:  # 빈 문자열/미설정은 falsy → 미설정 취급
+        return url
+    return None
+
+
+def print_token_missing():
+    sys.stderr.write("오류: Outline API 토큰을 찾을 수 없습니다.\n")
+    sys.stderr.write(REGISTER_HINT + "\n")
+    sys.exit(2)
+
+
+def print_url_missing():
+    sys.stderr.write("오류: 베이스 URL(OUTLINE_URL)이 설정되지 않았습니다.\n")
+    sys.stderr.write(URL_HINT + "\n")
+    sys.exit(2)
+
+
+# --------------------------------------------------------------------------
+# API 호출
+# --------------------------------------------------------------------------
+def _http_error(err):
+    """HTTPError 를 stderr 안내 + message 병기 후 exit 1."""
+    code = err.code
+    try:
+        body = err.read().decode("utf-8")
+        message = json.loads(body).get("message", "")
+    except Exception:
+        message = ""
+    if code == 401:
+        guide = "토큰이 유효하지 않거나 만료되었습니다.\n" + REGISTER_HINT
+    elif code == 403:
+        guide = "권한 부족 — 문서/컬렉션 권한 또는 API 키 스코프를 확인하세요."
+    elif code == 404:
+        guide = "문서/컬렉션 ID 를 확인하세요."
+    elif code == 429:
+        guide = "rate limit — 잠시 후 재시도하세요."
+    else:
+        guide = "HTTP %d" % code
+    sys.stderr.write("오류: " + guide + "\n")
+    if message:
+        sys.stderr.write("API message: " + message + "\n")
+    sys.exit(1)
+
+
+def call(endpoint, payload, token, base_url):
+    """POST {base}/api/{endpoint} — JSON body, Bearer 인증, 30초 timeout."""
+    url = base_url.rstrip("/") + "/api/" + endpoint
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method="POST")
+    req.add_header("Authorization", "Bearer " + token)
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            raw = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as err:
+        _http_error(err)  # exit 1
+    except (
+        urllib.error.URLError,
+        http.client.HTTPException,
+        TimeoutError,
+        OSError,
+    ) as err:
+        # URLError/타임아웃 + 응답 수신 중 연결 리셋(ConnectionResetError 등
+        # OSError 계열)·http.client 예외까지 "기타/네트워크"로 처리.
+        reason = getattr(err, "reason", None) or err
+        sys.stderr.write("오류: 네트워크 오류 — %s\n" % reason)
+        sys.exit(1)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        sys.stderr.write("오류: API 응답을 JSON 으로 파싱할 수 없습니다.\n")
+        sys.exit(1)
+
+
+# --------------------------------------------------------------------------
+# 유틸
+# --------------------------------------------------------------------------
+def normalize_doc_id(value):
+    """전체 URL 도 허용 — 마지막 path segment 를 추출한다."""
+    v = value.strip()
+    if "/" in v:
+        v = v.split("#", 1)[0].split("?", 1)[0]
+        segments = [s for s in v.split("/") if s]
+        if segments:
+            return segments[-1]
+    return v
+
+
+def abs_url(base_url, rel):
+    """API 응답의 상대 경로에 base URL 을 붙여 절대 URL 을 만든다."""
+    if not rel:
+        return ""
+    if rel.startswith("http://") or rel.startswith("https://"):
+        return rel
+    # 상대 경로가 "/"로 시작하지 않아도 malformed URL 이 되지 않도록 보정.
+    # (현재 Outline 응답은 항상 "/doc/..." 형태라 동작 변화 없음.)
+    if not rel.startswith("/"):
+        rel = "/" + rel
+    return base_url.rstrip("/") + rel
+
+
+def clean_snippet(text, limit=200):
+    """HTML 태그 제거 + 엔티티 복원 + 공백 정규화 + ~200자 절단."""
+    if not text:
+        return ""
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text)
+    text = " ".join(text.split())
+    if len(text) > limit:
+        text = text[:limit].rstrip() + "…"
+    return text
+
+
+def read_body_file(path, sub):
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return fh.read()
+    except OSError as err:
+        sub.error("본문 파일을 읽을 수 없습니다: %s (%s)" % (path, err.strerror or err))
+
+
+# --------------------------------------------------------------------------
+# 서브커맨드 핸들러
+# --------------------------------------------------------------------------
+def cmd_doctor(args, token, base_url, subs):
+    data = call("auth.info", {}, token, base_url)
+    info = data.get("data", {}) or {}
+    user = info.get("user", {}) or {}
+    team = info.get("team", {}) or {}
+    print("OK: 인증 성공")
+    print("사용자: %s <%s>" % (user.get("name", "?"), user.get("email", "?")))
+    print("팀: %s (%s)" % (team.get("name", "?"), team.get("url", "")))
+
+
+def cmd_search(args, token, base_url, subs):
+    payload = {"query": args.query, "limit": args.limit}
+    if args.collection:
+        payload["collectionId"] = args.collection
+    data = call("documents.search", payload, token, base_url)
+    results = data.get("data", []) or []
+    if not results:
+        print("(검색 결과 없음)")
+        return
+    for item in results:
+        doc = item.get("document", {}) or {}
+        snippet = clean_snippet(item.get("context", ""))
+        print("- %s" % doc.get("title", "(제목 없음)"))
+        print("  id: %s" % doc.get("id", ""))
+        print("  url: %s" % abs_url(base_url, doc.get("url", "")))
+        if snippet:
+            print("  snippet: %s" % snippet)
+
+
+def cmd_read(args, token, base_url, subs):
+    doc_id = normalize_doc_id(args.doc)
+    data = call("documents.info", {"id": doc_id}, token, base_url)
+    d = data.get("data", {}) or {}
+    print(
+        "제목: %s | id: %s | collectionId: %s | updatedAt: %s | url: %s"
+        % (
+            d.get("title", ""),
+            d.get("id", ""),
+            d.get("collectionId", ""),
+            d.get("updatedAt", ""),
+            abs_url(base_url, d.get("url", "")),
+        )
+    )
+    print()
+    print(d.get("text", ""))
+
+
+def cmd_list(args, token, base_url, subs):
+    payload = {"limit": args.limit, "sort": "updatedAt", "direction": "DESC"}
+    if args.collection:
+        payload["collectionId"] = args.collection
+    data = call("documents.list", payload, token, base_url)
+    docs = data.get("data", []) or []
+    if not docs:
+        print("(문서 없음)")
+        return
+    for d in docs:
+        print("%s  %s" % (d.get("id", ""), d.get("title", "(제목 없음)")))
+
+
+def cmd_tree(args, token, base_url, subs):
+    data = call("collections.documents", {"id": args.collectionId}, token, base_url)
+    nodes = data.get("data", []) or []
+    if not nodes:
+        print("(빈 컬렉션)")
+        return
+
+    def walk(items, depth):
+        for n in items:
+            print(
+                "%s- %s  [%s]"
+                % ("  " * depth, n.get("title", "(제목 없음)"), n.get("id", ""))
+            )
+            children = n.get("children", []) or []
+            if children:
+                walk(children, depth + 1)
+
+    walk(nodes, 0)
+
+
+def cmd_collections(args, token, base_url, subs):
+    data = call("collections.list", {"limit": 100}, token, base_url)
+    colls = data.get("data", []) or []
+    if not colls:
+        print("(컬렉션 없음)")
+        return
+    for c in colls:
+        print("%s  %s" % (c.get("id", ""), c.get("name", "(이름 없음)")))
+
+
+def cmd_create(args, token, base_url, subs):
+    body = read_body_file(args.body_file, subs["create"])
+    payload = {"title": args.title, "text": body, "publish": bool(args.publish)}
+    if args.collection:
+        payload["collectionId"] = args.collection
+    if args.parent:
+        payload["parentDocumentId"] = normalize_doc_id(args.parent)
+    data = call("documents.create", payload, token, base_url)
+    d = data.get("data", {}) or {}
+    status = "발행됨" if args.publish else "draft"
+    print("생성됨 (%s): %s" % (status, d.get("title", "")))
+    print("id: %s" % d.get("id", ""))
+    print("url: %s" % abs_url(base_url, d.get("url", "")))
+
+
+def cmd_update(args, token, base_url, subs):
+    doc_id = normalize_doc_id(args.doc)
+    payload = {"id": doc_id}
+    if args.title:
+        payload["title"] = args.title
+    if args.body_file:
+        payload["text"] = read_body_file(args.body_file, subs["update"])
+    if args.append:
+        payload["append"] = True
+    data = call("documents.update", payload, token, base_url)
+    d = data.get("data", {}) or {}
+    print("수정됨: %s" % d.get("title", ""))
+    print("id: %s" % d.get("id", doc_id))
+    print("url: %s" % abs_url(base_url, d.get("url", "")))
+
+
+def cmd_move(args, token, base_url, subs):
+    doc_id = normalize_doc_id(args.doc)
+    payload = {"id": doc_id}
+    if args.collection:
+        payload["collectionId"] = args.collection
+    if args.parent:
+        payload["parentDocumentId"] = normalize_doc_id(args.parent)
+    call("documents.move", payload, token, base_url)
+    print("이동됨: %s" % doc_id)
+
+
+def cmd_archive(args, token, base_url, subs):
+    doc_id = normalize_doc_id(args.doc)
+    data = call("documents.archive", {"id": doc_id}, token, base_url)
+    d = data.get("data", {}) or {}
+    print("아카이브됨: %s  [%s]" % (d.get("title", doc_id), d.get("id", doc_id)))
+
+
+def cmd_delete(args, token, base_url, subs):
+    doc_id = normalize_doc_id(args.doc)
+    call("documents.delete", {"id": doc_id}, token, base_url)
+    print("삭제됨(휴지통 이동): %s" % doc_id)
+    print("복구하려면: outline restore %s" % doc_id)
+
+
+def cmd_restore(args, token, base_url, subs):
+    doc_id = normalize_doc_id(args.doc)
+    data = call("documents.restore", {"id": doc_id}, token, base_url)
+    d = data.get("data", {}) or {}
+    print("복원됨: %s  [%s]" % (d.get("title", doc_id), d.get("id", doc_id)))
+
+
+HANDLERS = {
+    "doctor": cmd_doctor,
+    "search": cmd_search,
+    "read": cmd_read,
+    "list": cmd_list,
+    "tree": cmd_tree,
+    "collections": cmd_collections,
+    "create": cmd_create,
+    "update": cmd_update,
+    "move": cmd_move,
+    "archive": cmd_archive,
+    "delete": cmd_delete,
+    "restore": cmd_restore,
+}
+
+
+# --------------------------------------------------------------------------
+# 파서
+# --------------------------------------------------------------------------
+def build_parser():
+    parser = argparse.ArgumentParser(
+        prog="outline",
+        description="셀프 호스트 Outline 위키 API 래퍼 CLI (베이스 URL 은 OUTLINE_URL env)",
+    )
+    sub = parser.add_subparsers(dest="command", metavar="<command>", required=True)
+    subs = {}
+
+    subs["doctor"] = sub.add_parser("doctor", help="토큰·계정 확인 (셋업 검증용)")
+
+    p = sub.add_parser("search", help="문서 검색 (documents.search)")
+    p.add_argument("query", help="검색어")
+    p.add_argument("--collection", help="컬렉션 ID 로 범위 제한")
+    p.add_argument("--limit", type=int, default=10, help="최대 결과 수 (기본 10)")
+    subs["search"] = p
+
+    p = sub.add_parser("read", help="문서 조회 — 메타 헤더 + 마크다운 본문")
+    p.add_argument("doc", metavar="docId|URL", help="문서 ID 또는 전체 URL")
+    subs["read"] = p
+
+    p = sub.add_parser("list", help="문서 목록 (updatedAt DESC)")
+    p.add_argument("--collection", help="컬렉션 ID 로 범위 제한")
+    p.add_argument("--limit", type=int, default=25, help="최대 결과 수 (기본 25)")
+    subs["list"] = p
+
+    p = sub.add_parser("tree", help="컬렉션 문서 트리 (들여쓰기 + id)")
+    p.add_argument("collectionId", help="컬렉션 ID")
+    subs["tree"] = p
+
+    subs["collections"] = sub.add_parser("collections", help="컬렉션 목록 (id, 이름)")
+
+    p = sub.add_parser("create", help="문서 생성 (기본 draft)")
+    p.add_argument("--title", required=True, help="문서 제목")
+    p.add_argument("--collection", help="컬렉션 ID (--publish 시 필수)")
+    p.add_argument("--parent", metavar="docId|URL", help="상위 문서 ID")
+    p.add_argument("--body-file", required=True, metavar="FILE", help="본문 파일 경로")
+    p.add_argument("--publish", action="store_true", help="즉시 발행 (--collection 필수)")
+    subs["create"] = p
+
+    p = sub.add_parser("update", help="문서 수정 (전체 본문 교체)")
+    p.add_argument("doc", metavar="docId|URL", help="문서 ID 또는 전체 URL")
+    p.add_argument("--body-file", metavar="FILE", help="새 본문 파일 경로")
+    p.add_argument("--title", help="새 제목")
+    p.add_argument("--append", action="store_true", help="본문을 추가 (--body-file 필수)")
+    subs["update"] = p
+
+    p = sub.add_parser("move", help="문서 이동")
+    p.add_argument("doc", metavar="docId|URL", help="문서 ID 또는 전체 URL")
+    p.add_argument("--collection", help="대상 컬렉션 ID")
+    p.add_argument("--parent", metavar="docId|URL", help="대상 상위 문서 ID")
+    subs["move"] = p
+
+    p = sub.add_parser("archive", help="문서 아카이브")
+    p.add_argument("doc", metavar="docId|URL", help="문서 ID 또는 전체 URL")
+    subs["archive"] = p
+
+    p = sub.add_parser("delete", help="문서 삭제 (휴지통 이동만)")
+    p.add_argument("doc", metavar="docId|URL", help="문서 ID 또는 전체 URL")
+    subs["delete"] = p
+
+    p = sub.add_parser("restore", help="문서 복원 (휴지통에서)")
+    p.add_argument("doc", metavar="docId|URL", help="문서 ID 또는 전체 URL")
+    subs["restore"] = p
+
+    return parser, subs
+
+
+def validate(args, subs):
+    """usage 레벨 검증 — API 호출 전에 exit 2 로 거부."""
+    if args.command == "create":
+        if args.publish and not args.collection:
+            subs["create"].error(
+                "--publish 지정 시 --collection 이 필요합니다 (발행 문서는 컬렉션 필수)"
+            )
+    elif args.command == "update":
+        if args.append and not args.body_file:
+            subs["update"].error("--append 는 --body-file 이 필요합니다")
+        if not args.body_file and not args.title:
+            subs["update"].error(
+                "수정할 내용이 없습니다 — --body-file 또는 --title 중 하나 이상이 필요합니다"
+            )
+    elif args.command == "move":
+        if not args.collection and not args.parent:
+            subs["move"].error(
+                "이동 대상이 없습니다 — --collection 또는 --parent 중 하나 이상이 필요합니다"
+            )
+
+
+def main():
+    parser, subs = build_parser()
+    args = parser.parse_args()
+
+    # 1) usage 검증 (토큰·URL 해석·API 호출 전)
+    validate(args, subs)
+
+    # 2) 토큰 해석 (확인 순서 고정: ① 토큰 → ② URL)
+    token = resolve_token()
+    if not token:
+        print_token_missing()  # exit 2
+
+    # 3) base URL 해석 — OUTLINE_URL 필수, 미설정이면 exit 2
+    base_url = resolve_base_url()
+    if not base_url:
+        print_url_missing()  # exit 2
+
+    # 4) 디스패치
+    HANDLERS[args.command](args, token, base_url, subs)
+
+
+if __name__ == "__main__":
+    main()

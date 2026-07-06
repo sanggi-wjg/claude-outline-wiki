@@ -1,0 +1,8 @@
+{
+  "name": "outline-wiki",
+  "description": "사내 Outline 위키의 문서 검색·조회·작성·수정·관리를 담당하는 에이전트와 outline CLI를 제공한다.",
+  "version": "0.1.0",
+  "author": {
+    "name": "outline-wiki maintainers"
+  }
+}
