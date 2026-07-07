@@ -40,7 +40,7 @@ outline doctor
 
 ### permission 권장 규칙
 
-"파괴적 작업은 사용자가 명시적으로 요청한 경우에만" 정책을 permission 레이어에서도 보존하기 위해, **읽기 계열만 무프롬프트로 허용하고 쓰기 계열은 프롬프트를 유지**한다. 쓰기 계열(`create`·`update`·`move`·`archive`·`delete`·`restore`)은 절대 `allow`에 넣지 않는다.
+"파괴적 작업은 사용자가 명시적으로 요청한 경우에만" 정책을 permission 레이어에서도 보존하기 위해, **읽기 계열만 무프롬프트로 허용하고 쓰기 계열은 프롬프트를 유지**한다. 쓰기 계열(`create`·`update`·`move`·`archive`·`delete`·`restore`·`revert`)은 절대 `allow`에 넣지 않는다. 특히 `revert`는 문서 본문뿐 아니라 제목까지 리비전 시점으로 통째로 되돌리는 파괴적 쓰기이므로 반드시 프롬프트를 거친다.
 
 `.claude/settings.json`(또는 프로젝트/사용자 settings)에 아래를 추가한다:
 
@@ -52,7 +52,8 @@ outline doctor
     "Bash(outline read:*)",
     "Bash(outline list:*)",
     "Bash(outline tree:*)",
-    "Bash(outline collections:*)"
+    "Bash(outline collections:*)",
+    "Bash(outline revisions:*)"
   ]
 }
 ```

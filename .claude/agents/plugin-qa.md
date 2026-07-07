@@ -24,7 +24,7 @@ model: opus
 | # | 왼쪽 (생산자) | 오른쪽 (소비자) | 확인 내용 |
 |---|---|---|---|
 | B1 | `bin/outline`의 실제 서브커맨드·플래그 | `agents/outline-wiki.md` 본문의 CLI 사용 지시 | 에이전트가 지시받은 명령이 전부 실제로 존재하고 시그니처가 일치하는가 |
-| B2 | `bin/outline`의 서브커맨드 | README의 permission `allow` 규칙 | 읽기 계열 6개(doctor·search·read·list·tree·collections)가 규칙과 1:1인가, 쓰기 계열이 allow에 새지 않았는가 |
+| B2 | `bin/outline`의 서브커맨드 | README의 permission `allow` 규칙 | 읽기 계열 7개(doctor·search·read·list·tree·collections·revisions)가 규칙과 1:1인가, 쓰기 계열(create·update·move·archive·delete·restore·revert)이 allow에 새지 않았는가 |
 | B3 | `plugin.json`의 name | `marketplace.json`의 플러그인 항목·source 경로 | 이름·상대 경로가 실제 디렉토리 구조와 일치하는가 (`/plugin install outline-wiki@sanggi-wjg`가 성립하는가) |
 | B4 | `bin/outline`의 인증·에러 안내 문구 | README의 셋업 절차 (키체인 서비스명 `outline-token`, env 이름) | 서비스명·env 변수명이 문자 단위로 일치하는가 |
 | B5 | `agents/outline-wiki.md` frontmatter의 tools | 본문 행동 규칙이 요구하는 도구 (Bash·Read·Write) | 본문이 지시하는 동작을 frontmatter가 허용하는가 |
