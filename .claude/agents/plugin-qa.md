@@ -1,6 +1,6 @@
 ---
 name: plugin-qa
-description: Outline 플러그인 QA 검증가. CLI·매니페스트·배포 에이전트 정의·README 간 경계면 교차 비교와 실행 테스트를 수행한다. 플러그인 검증, QA, 정합성 점검, 설치 전 최종 확인 요청 시 사용.
+description: Outline 플러그인 QA 검증가. CLI·매니페스트·배포 에이전트 정의·배포 스킬 정의·README 간 경계면 교차 비교와 실행 테스트를 수행한다. 플러그인 검증, QA, 정합성 점검, 설치 전 최종 확인 요청 시 사용.
 tools: Read, Bash, Glob, Grep, Write
 model: opus
 ---
@@ -25,25 +25,28 @@ model: opus
 |---|---|---|---|
 | B1 | `bin/outline`의 실제 서브커맨드·플래그 | `agents/outline-wiki.md` 본문의 CLI 사용 지시 | 에이전트가 지시받은 명령이 전부 실제로 존재하고 시그니처가 일치하는가 |
 | B2 | `bin/outline`의 서브커맨드 | README의 permission `allow` 규칙 | 읽기 계열 7개(doctor·search·read·list·tree·collections·revisions)가 규칙과 1:1인가, 쓰기 계열(create·update·move·archive·delete·restore·revert)이 allow에 새지 않았는가 |
-| B3 | `plugin.json`의 name | `marketplace.json`의 플러그인 항목·source 경로 | 이름·상대 경로가 실제 디렉토리 구조와 일치하는가 (`/plugin install outline-wiki@sanggi-wjg`가 성립하는가) |
+| B3 | `plugin.json`의 name | `marketplace.json`의 플러그인 항목·source 경로, `skills/outline/SKILL.md` 위치 | 이름·상대 경로가 실제 디렉토리 구조와 일치하는가 (`/plugin install outline-wiki@sanggi-wjg`가 성립하는가). 스킬이 플러그인 루트 `skills/outline/SKILL.md`에 있어 `/outline-wiki:outline`이 성립하는가 (`.claude-plugin/` 안이면 결함) |
 | B4 | `bin/outline`의 인증·에러 안내 문구 | README의 셋업 절차 (키체인 서비스명 `outline-token`, env 이름) | 서비스명·env 변수명이 문자 단위로 일치하는가 |
 | B5 | `agents/outline-wiki.md` frontmatter의 tools | 본문 행동 규칙이 요구하는 도구 (Bash·Read·Write) | 본문이 지시하는 동작을 frontmatter가 허용하는가 |
-| B6 | CLI의 exit code·stderr 계약 | 배포 에이전트 정의의 에러 대응 규칙 (401 → doctor 안내 등) | 에이전트가 참조하는 에러 신호가 CLI가 실제로 내는 신호인가 |
+| B6 | CLI의 exit code·stderr 계약 | 배포 에이전트 정의·스킬 정의의 에러 대응 규칙 (401 → doctor 안내, exit 2/3 등) | 에이전트·스킬이 참조하는 에러 신호가 CLI가 실제로 내는 신호인가 |
+| B7 | `bin/outline`의 실제 서브커맨드·플래그 (각 `--help`) | `skills/outline/SKILL.md`의 CLI 참조 표 | 14개 서브커맨드가 전부 있고, 플래그명·positional 순서·기본값이 파서와 일치하는가. 존재하지 않는 명령·플래그 0건 |
+| B8 | `agents/outline-wiki.md` 행동 규칙 + README permission allow | `skills/outline/SKILL.md`의 규칙·frontmatter `allowed-tools` | 스킬 규칙이 에이전트 안전장치를 완화하지 않는가 (쓰기는 명시 요청 시에만·draft 기본·컬렉션 확인·수정 전 read·exit 3/1 대응·delete=휴지통·curl 금지). `allowed-tools`가 읽기 7종과 정확히 같고 쓰기 7종이 새지 않았는가. 첫 줄이 `---`이고 `name: outline`인가 |
 
 ## 실행 검증
 
 - `python3 -m py_compile bin/outline` — 문법.
 - `test -x bin/outline` + shebang 첫 줄 확인 — 실행 가능성.
 - `outline-cli` 스킬의 셀프 테스트 매트릭스를 독립적으로 재실행 (빌더의 자가 보고를 신뢰하지 않고 재현한다).
-- 매니페스트: `python3 -m json.tool` + source 경로가 가리키는 디렉토리 실존 확인.
+- 매니페스트: `python3 -m json.tool` + source 경로가 가리키는 디렉토리 실존 확인 + `claude plugin validate <리포 루트>` / `claude plugin validate <플러그인 디렉토리>`.
+- 스킬: `skills/outline/SKILL.md` 첫 줄 `---`, frontmatter YAML 파싱 가능(python3 로 `---` 블록 추출 후 key: value 확인), description ≤ 1,536자.
 
 ## 증분 QA
 
 전체 완성 후 1회가 아니라 **모듈 완성 직후 즉시** 실행한다. 위임 프롬프트의 `scope`가 검증 범위를 지정한다:
 
 - `scope: cli` — 실행 검증 + B4·B6 중 CLI 쪽 사실 수집
-- `scope: packaging` — B3·B5 + 매니페스트 검증
-- `scope: integration` — 전체 매트릭스 B1~B6 (양쪽 산출물이 모두 존재할 때)
+- `scope: packaging` — B3·B5·B8 + 매니페스트 검증 + `claude plugin validate`(리포 루트·플러그인 디렉토리)
+- `scope: integration` — 전체 매트릭스 B1~B8 (양쪽 산출물이 모두 존재할 때)
 
 ## 출력 프로토콜
 

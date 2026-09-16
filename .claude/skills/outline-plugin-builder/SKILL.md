@@ -1,6 +1,6 @@
 ---
 name: outline-plugin-builder
-description: Outline 위키 플러그인 빌드 하네스 오케스트레이터. cli-developer·plugin-packager·plugin-qa 에이전트를 조율해 claude-plugins 마켓플레이스 리포(bin/outline CLI + 매니페스트 + 배포 에이전트 + README)를 구현·검증한다. "플러그인 빌드/만들어/구현해", "CLI 구현/수정/고쳐줘", "매니페스트/README/에이전트 정의 수정", "QA 돌려줘", "플러그인 검증/재검증", "다시 실행/재빌드/업데이트/보완", "이전 결과 개선", "설치 준비/배포 준비" 등 outline-wiki 플러그인 산출물 관련 모든 작업 요청 시 반드시 이 스킬을 사용할 것.
+description: Outline 위키 플러그인 빌드 하네스 오케스트레이터. cli-developer·plugin-packager·plugin-qa 에이전트를 조율해 claude-plugins 마켓플레이스 리포(bin/outline CLI + 매니페스트 + 배포 에이전트 + 배포 스킬 + README)를 구현·검증한다. "플러그인 빌드/만들어/구현해", "CLI 구현/수정/고쳐줘", "매니페스트/README/에이전트 정의 수정", "QA 돌려줘", "플러그인 검증/재검증", "다시 실행/재빌드/업데이트/보완", "이전 결과 개선", "설치 준비/배포 준비" 등 outline-wiki 플러그인 산출물 관련 모든 작업 요청 시 반드시 이 스킬을 사용할 것.
 ---
 
 # Outline Plugin Builder — 오케스트레이터
@@ -19,7 +19,7 @@ CONTEXT.md 설계대로 outline-wiki 플러그인을 구현·검증하는 빌드
 | 에이전트 | subagent_type | 스킬 | 산출물 | 보고서 |
 |---------|--------------|------|--------|--------|
 | cli-developer | `cli-developer` | outline-cli | `claude-plugins/plugins/outline-wiki/bin/outline` | `_workspace/01_cli_selftest.md` |
-| plugin-packager | `plugin-packager` | plugin-packaging | 매니페스트 2종 + `agents/outline-wiki.md` + 루트 README | `_workspace/02_packager_report.md` |
+| plugin-packager | `plugin-packager` | plugin-packaging | 매니페스트 2종 + `agents/outline-wiki.md` + `skills/outline/SKILL.md` + 루트 README | `_workspace/02_packager_report.md` |
 | plugin-qa | `plugin-qa` | (교차 매트릭스는 에이전트 정의에 내장) | 없음 (검증만) | `_workspace/03_qa_findings_{scope}.md` |
 
 모든 Agent 호출에 `model: "opus"`를 명시한다.
@@ -54,7 +54,7 @@ CONTEXT.md 설계대로 outline-wiki 플러그인을 구현·검증하는 빌드
 
 1. cli-developer 완료 → plugin-qa를 `scope: cli`로 호출.
 2. plugin-packager 완료 → plugin-qa를 `scope: packaging`으로 호출 (별도 호출·순차여도 무방).
-3. 둘 다 완료 + scope별 blocker 해소 후 → plugin-qa를 `scope: integration`으로 호출 (경계면 매트릭스 B1~B6).
+3. 둘 다 완료 + scope별 blocker 해소 후 → plugin-qa를 `scope: integration`으로 호출 (경계면 매트릭스 B1~B8).
 4. **수정 루프**: QA 발견사항의 담당 빌더에게 SendMessage로 지적사항(증상·기대 동작·근거)을 전달해 `fix` 수행 → 해당 scope 재QA. 빌더 에이전트가 이미 종료되어 SendMessage가 불가하면 같은 subagent_type으로 새로 호출하되 `mode: fix`와 이전 보고서 경로를 프롬프트에 담는다.
 5. 루프 상한 **2회**. 2회 후에도 blocker가 남으면 중단하고 미해결 항목을 사용자에게 보고한다 (같은 지적이 2회 반복되면 스킬 명세 자체의 문제일 가능성 — Phase 5 진화 대상).
 
@@ -62,7 +62,7 @@ CONTEXT.md 설계대로 outline-wiki 플러그인을 구현·검증하는 빌드
 
 `/plugin` 명령과 실토큰 스모크는 대화형·자격증명 필요 작업이라 에이전트가 대신할 수 없다. 아래를 **그대로 복사해 실행할 수 있는 형태**로 정리해 최종 보고에 포함한다:
 
-1. 로컬 설치 리허설: `/plugin marketplace add {repo 절대경로}` → `/plugin install outline-wiki@sanggi-wjg` → 새 세션에서 `which outline` + 에이전트 인식 확인
+1. 로컬 설치 리허설: `/plugin marketplace add {repo 절대경로}` → `/plugin install outline-wiki@sanggi-wjg` → 새 세션에서 `which outline` + 에이전트 인식 + `/outline-wiki:outline` 노출 확인
 2. 실토큰 등록(`security add-generic-password -s outline-token -a "$USER" -w "<토큰>"`) 후 스모크: `doctor` → `collections` → `search` → `read` → draft `create`/`delete`/`restore` 왕복
 3. GitHub 사설 리포 생성·push 명령 + 팀원 1명 설치 리허설 안내
 

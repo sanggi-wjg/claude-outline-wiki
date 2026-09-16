@@ -4,7 +4,7 @@ Outline 위키용 Claude Code 플러그인(outline-wiki)을 만들어 사설 Git
 
 ## 하네스: Outline 플러그인 빌더
 
-**목표:** CONTEXT.md 설계대로 마켓플레이스 리포 `claude-plugins/`(bin/outline CLI + 매니페스트 + 배포 에이전트 + README)를 구현·검증하여 팀원이 `/plugin install outline-wiki@sanggi-wjg`로 설치 가능하게 한다.
+**목표:** CONTEXT.md 설계대로 마켓플레이스 리포 `claude-plugins/`(bin/outline CLI + 매니페스트 + 배포 에이전트 + 배포 스킬 + README)를 구현·검증하여 팀원이 `/plugin install outline-wiki@sanggi-wjg`로 설치 가능하게 한다.
 
 **트리거:** 플러그인 빌드·수정·재빌드·QA·검증·패키징·배포 준비 등 산출물 관련 작업 요청 시 `outline-plugin-builder` 스킬을 사용하라. 단순 질문은 직접 응답 가능.
 
@@ -23,3 +23,4 @@ Outline 위키용 Claude Code 플러그인(outline-wiki)을 만들어 사설 Git
 | 2026-07-06 | 마켓플레이스명 team→sanggi-wjg (설치 참조 `outline-wiki@sanggi-wjg`). 스킬 2종·plugin-qa B3·CLAUDE.md 목표 라인 동기화(목표 라인 잔존은 커밋 전 코드 리뷰에서 발견·수정), QA packaging 재검증 PASS (개인 계정명은 비내장 원칙과 무충돌 명시. CONTEXT.md의 fitpet 명명은 07-05 스크럽에서 이미 무효화) | marketplace.json, README.md, skills 2종, agents/plugin-qa, CLAUDE.md | 사용자 결정 — 개인 GitHub 계정 리포 배포 (08_rename_marketplace_sanggi-wjg.md) |
 | 2026-07-06 | OUTLINE_URL 설정 안내 두 방법 병기 — 셸 프로필 export + Claude Code settings.json `env`(세션 한정 명시). CLI URL_HINT·README 셋업·스킬 2종(outline-cli L27, plugin-packaging 스냅샷) 동기화, QA cli+packaging+B4 PASS | bin/outline, README.md, skills 2종 | 사용자 결정 — settings.json env 방식 실검증 후 문서화 (09_outline_url_settings_env.md) |
 | 2026-07-07 | v0.2.0 리비전 기능(revisions/revert·update 왕복 검증 exit 3)의 커밋 전 코드 리뷰 15건(CONFIRMED 8) 반영 — normalize_tables 오병합 가드 3종(구분자 행 진입·헤딩/인용 제외·펜스 문자/길이 매칭), canonical_text fence-aware 재작성(구두점 한정 unescape, 펜스 내부 엄격 비교), 왕복 검증을 documents.update 응답 기반으로 전환(info 재호출 제거 → 레이스·저장 후 exit 1 오신호 해소, 경고 docId는 응답 UUID), --append 미정규화·create 정규화, revisions 비-UUID 해석. 신기능 명세 소급 명문화 + README permission(revisions allow·revert 열거)·에이전트 exit 3/1 규칙·plugin-qa B2·패키징 스냅샷(0.2.0) 동기화. QA 3 scope PASS(수정 루프 0회, T5 사용자 스모크 이관) | bin/outline, agents/outline-wiki.md, plugin.json, README.md, skills 2종, agents/plugin-qa | 코드 리뷰 후속 (10~12_*reviewfix*.md) |
+| 2026-09-15 | v0.3.0 배포용 스킬 번들 추가 — `plugins/outline-wiki/skills/outline/SKILL.md` 신설(설치 후 `/outline-wiki:outline`, 인자 있으면 수행·없으면 doctor+명령 요약, allowed-tools 읽기 7종만, CLI 참조 14종·안전장치는 에이전트 정의 요약본). plugin.json 0.3.0·description 갱신, README 사용법 절·구조도·설치 후 확인·로컬 검증 경로(`./claude-plugins`) 갱신. 하네스 동기화: plugin-packaging 스킬에 스킬 정의 절·검증 절차, plugin-qa B7(스킬↔CLI 시그니처)·B8(스킬↔에이전트 안전장치·allowed-tools) 신설, packager·builder 정의 갱신. QA packaging+integration PASS(수정 루프 0회, 설치 리허설은 사용자 스모크 이관) | claude-plugins/ 전체, README.md, skills 2종, agents 2종 | 사용자 요청 — 플러그인에 Claude 스킬 등록 (13_packager_skill.md, 14_qa_skill_findings.md) |

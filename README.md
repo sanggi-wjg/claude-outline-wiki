@@ -4,9 +4,9 @@
 
 ## 제공 플러그인
 
-| 플러그인 | 설명 |
+| 플러그인 | 제공 컴포넌트 |
 | :--- | :--- |
-| `outline-wiki` | 사내 Outline 위키의 문서 검색·조회·작성·수정·관리를 담당하는 에이전트 + `outline` CLI |
+| `outline-wiki` | 사내 Outline 위키의 문서 검색·조회·작성·수정·관리 — 서브에이전트 `outline-wiki` + 스킬 `/outline-wiki:outline` + `outline` CLI |
 
 ## outline-wiki 셋업
 
@@ -63,8 +63,16 @@ outline doctor
 새 세션에서:
 
 - `/context`의 Custom Agents에 `outline-wiki`가 보이는지 확인한다.
+- `/help`의 **Custom commands** 탭(또는 `/` 메뉴)에 `/outline-wiki:outline`이 보이는지 확인한다.
 - `which outline`으로 CLI가 `PATH`에 등록됐는지 확인한다.
 - `outline doctor`로 토큰·연결 상태를 진단한다.
+
+## 사용법
+
+두 가지 진입점이 있다. 같은 규칙(읽기 우선, 쓰기는 명시 요청 시에만)을 따르므로 상황에 맞게 고르면 된다.
+
+- **서브에이전트 `outline-wiki`**: 여러 문서를 훑어 종합해야 하거나 검색 범위가 넓을 때. 메인 세션이 필요하다고 판단하면 자동으로 위임하고, `@outline-wiki 결제 정책 문서 찾아줘`처럼 직접 호출할 수도 있다. 격리된 컨텍스트에서 검색·발췌한 결과만 돌려주므로 메인 세션 컨텍스트를 아낀다.
+- **스킬 `/outline-wiki:outline [요청]`**: 메인 세션에서 직접 위키를 다룰 때. 예) `/outline-wiki:outline 온보딩 가이드 문서 읽어줘`. 인자 없이 `/outline-wiki:outline`만 실행하면 `outline doctor`로 연결 상태를 확인하고 사용 가능한 명령 요약을 보여준다.
 
 ## 리포 구조
 
@@ -78,15 +86,20 @@ claude-plugins/
 │       │   └── plugin.json     # name, description, version
 │       ├── agents/
 │       │   └── outline-wiki.md # 배포용 에이전트 정의
+│       ├── skills/
+│       │   └── outline/
+│       │       └── SKILL.md    # 배포용 스킬 정의 → /outline-wiki:outline
 │       └── bin/
 │           └── outline         # Python CLI
-└── README.md                   # 마켓플레이스 안내 + 셋업 (이 파일)
 ```
+
+README는 이 파일 하나만 두며, `claude-plugins/` 안에는 두지 않는다.
 
 ## 로컬 검증
 
 배포 전 로컬에서 마켓플레이스 유효성을 확인한다:
 
 ```bash
-claude plugin validate .
+claude plugin validate ./claude-plugins
+claude plugin validate ./claude-plugins/plugins/outline-wiki
 ```
